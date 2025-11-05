@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Puzzle das Alavancas — Versão Offline</title>
+  <style>
+    :root{--bg:#070707;--card:#0f1112;--accent:#16a34a;--muted:#9ca3af}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:#fff;font-family:Inter,Arial,Helvetica,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .app{width:100%;max-width:980px}
+    .card{background:linear-gradient(180deg,#0b0c0d, #0f1112);padding:20px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,0.6)}
+    h1{margin:0 0 12px;font-size:20px}
+    .row{display:flex;gap:12px;align-items:center}
+    .col{display:flex;flex-direction:column;gap:8px}
+    label{font-size:13px;color:var(--muted)}
+    input[type=text],input[type=number],textarea,select{background:#0b0b0b;border:1px solid #222;color:#fff;padding:10px;border-radius:8px;width:100%}
+    textarea{min-height:80px}
+    button{background:var(--accent);border:none;color:#021;padding:10px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #222;color:#fff}
+    .menu{display:flex;gap:12px;justify-content:center;margin-bottom:14px}
+    .hidden{display:none}
+    .lever-container{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;margin:18px 0}
+    .lever{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+    .switch{width:12px;height:64px;background:#222;border-radius:8px;position:relative}
+    .knob{position:absolute;left:1px;top:6px;width:10px;height:22px;border-radius:6px;background:#888;transition:top .25s}
+    .switch.down .knob{top:36px;background:var(--accent)}
+    .light{width:14px;height:14px;border-radius:50%;background:#2b2b2b;border:1px solid #111}
+    .light.on{background:var(--accent);box-shadow:0 0 8px rgba(22,163,74,0.35)}
+    #curtain-left,#curtain-right{position:fixed;top:0;width:50%;height:100%;background:linear-gradient(180deg,#0b0b0b,#000);transition:transform 1s;z-index:90}
+    #curtain-left{left:0;transform:translateX(0)}
+    #curtain-right{right:0;transform:translateX(0)}
+    .open-left{transform:translateX(-100%)}
+    .open-right{transform:translateX(100%)}
+    .foot{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+    .codebox{background:#070707;border:1px dashed #222;padding:8px;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div id="curtain-left"></div>
+  <div id="curtain-right"></div>
+
+  <div class="app">
+    <div class="card">
+      <div id="menuView">
+        <h1>Puzzle das Alavancas</h1>
+        <div class="menu">
+          <button id="btnCreator">Criador</button>
+          <button id="btnPlayer" class="ghost">Jogador</button>
+        </div>
+        <p style="color:var(--muted)">Escolhe o modo. Em <strong>Criador</strong> tens as opções para configurar o puzzle e gerar um código que podes copiar e enviar. Em <strong>Jogador</strong> colas o código que recebeste para iniciar.</p>
+      </div>
+
+      <div id="creatorView" class="hidden">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h1>Criar puzzle</h1>
+          <div>
+            <button id="creatorBack" class="ghost">Voltar</button>
+          </div>
+        </div>
+
+        <div class="col">
+          <label>Número de alavancas</label>
+          <input id="numLevers" type="number" value="6" min="1" max="64" />
+
+          <label><input id="usePhrase" type="checkbox" checked /> Usar frase secreta (derivar padrão)</label>
+          <input id="phrase" type="text" placeholder="Frase secreta (ex: minha senha)" />
+
+          <label>OU — código binário manual (ex: 010101)</label>
+          <input id="manual" type="text" placeholder="Opcional: 0/1..." />
+
+          <label>Tipo de revelação</label>
+          <select id="revealType">
+            <option value="text">Texto</option>
+            <option value="link">Hiperligação</option>
+            <option value="image">Imagem (URL)</option>
+            <option value="html">HTML livre</option>
+          </select>
+
+          <label>Conteúdo a revelar</label>
+          <textarea id="revealContent">Parabéns! Encontraste o código.</textarea>
+
+          <div style="display:flex;gap:10px;align-items:center">
+            <button id="generateCode">Gerar código</button>
+            <button id="previewPuzzle" class="ghost">Pré-visualizar</button>
+          </div>
+
+          <div style="margin-top:10px">
+            <label>Código gerado (copia e envia ao jogador)</label>
+            <div class="codebox"><textarea id="generatedCode" readonly style="width:100%;height:80px;background:transparent;border:none;color:#ddd"></textarea></div>
+          </div>
+
+          <div class="foot">O código gerado é base64 (podes enviar mesmo a outra pessoa). Guarda uma cópia se precisares.</div>
+        </div>
+      </div>
+
+      <div id="playerView" class="hidden">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h1>Entrar como Jogador</h1>
+          <div><button id="playerBack" class="ghost">Voltar</button></div>
+        </div>
+
+        <label>Cola aqui o <strong>código</strong> que recebeste do criador</label>
+        <textarea id="inputCode" placeholder="Cole o código base64 aqui"></textarea>
+        <div style="display:flex;gap:10px"><button id="loadCode">Carregar puzzle</button><button id="pasteBtn" class="ghost">Colar do clipboard</button></div>
+
+        <div id="gameArea" class="hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2>Puzzle</h2>
+            <div><button id="toMenu" class="ghost">Menu</button></div>
+          </div>
+
+          <div id="levers" class="lever-container"></div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:10px">
+            <button id="checkBtn">Verificar</button>
+            <button id="resetBtn" class="ghost">Reset</button>
+          </div>
+          <p id="status" style="text-align:center;color:var(--muted)"></p>
+
+          <div id="revealOutput" style="text-align:center;margin-top:14px"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --- util base64 safe for unicode ---
+    function encodeBase64(obj){ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
+    function decodeBase64(s){ try{return JSON.parse(decodeURIComponent(escape(atob(s))))}catch(e){return null} }
+
+    const menuView = document.getElementById('menuView');
+    const creatorView = document.getElementById('creatorView');
+    const playerView = document.getElementById('playerView');
+
+    const btnCreator = document.getElementById('btnCreator');
+    const btnPlayer = document.getElementById('btnPlayer');
+    const creatorBack = document.getElementById('creatorBack');
+    const playerBack = document.getElementById('playerBack');
+
+    const generateCodeBtn = document.getElementById('generateCode');
+    const generatedCodeArea = document.getElementById('generatedCode');
+    const previewBtn = document.getElementById('previewPuzzle');
+
+    const loadCodeBtn = document.getElementById('loadCode');
+    const inputCode = document.getElementById('inputCode');
+    const pasteBtn = document.getElementById('pasteBtn');
+
+    const gameArea = document.getElementById('gameArea');
+    const leversContainer = document.getElementById('levers');
+    const checkBtn = document.getElementById('checkBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusP = document.getElementById('status');
+    const revealOutput = document.getElementById('revealOutput');
+    const toMenuBtn = document.getElementById('toMenu');
+
+    const curtainLeft = document.getElementById('curtain-left');
+    const curtainRight = document.getElementById('curtain-right');
+
+    function openCurtain(){ curtainLeft.classList.add('open-left'); curtainRight.classList.add('open-right'); }
+    function closeCurtain(){ curtainLeft.classList.remove('open-left'); curtainRight.classList.remove('open-right'); }
+
+    // Menu navigation
+    btnCreator.onclick = ()=>{ menuView.classList.add('hidden'); creatorView.classList.remove('hidden'); openCurtain(); }
+    btnPlayer.onclick = ()=>{ menuView.classList.add('hidden'); playerView.classList.remove('hidden'); closeCurtain(); }
+    creatorBack.onclick = ()=>{ creatorView.classList.add('hidden'); menuView.classList.remove('hidden'); }
+    playerBack.onclick = ()=>{ playerView.classList.add('hidden'); menuView.classList.remove('hidden'); }
+
+    // Helper: SHA-256 hex
+    async function sha256Hex(text){ const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+
+    // Generate code (B option): create meta, encode base64 and show
+    generateCodeBtn.onclick = async ()=>{
+      const n = Math.max(1, Math.min(64, parseInt(document.getElementById('numLevers').value||6)));
+      const usePhrase = document.getElementById('usePhrase').checked;
+      const phrase = document.getElementById('phrase').value || '';
+      const manual = (document.getElementById('manual').value||'').replace(/[^01]/g,'');
+      const type = document.getElementById('revealType').value;
+      const content = document.getElementById('revealContent').value || '';
+
+      // derive pattern bits
+      let pattern = '';
+      if (usePhrase && phrase){
+        // derive from SHA-256 hex -> bits
+        const fullHex = await sha256Hex(phrase);
+        const bits = fullHex.split('').map(c=>parseInt(c,16).toString(2).padStart(4,'0')).join('');
+        pattern = bits.slice(0,n).padEnd(n,'0');
+      } else if (manual){
+        pattern = manual.padEnd(n,'0').slice(0,n);
+      } else {
+        alert('Define uma frase ou um código manual.');
+        return;
+      }
+
+      const verifier = await sha256Hex(pattern);
+      const meta = { n, verifier, type, content };
+      const code = encodeBase64(meta);
+      generatedCodeArea.value = code;
+      // show brief info
+      const preview = `Padrão (só para ti): ${pattern}\nVerificador: ${verifier.slice(0,10)}...`;
+      statusMessage(preview);
+    };
+
+    previewBtn.onclick = ()=>{
+      // simple preview: if there's a generated code, open a quick preview by loading it in player area
+      const code = generatedCodeArea.value || '';
+      if(!code){ alert('Gera primeiro o código.'); return; }
+      loadPuzzleFromCode(code, true);
+      // switch to player view
+      creatorView.classList.add('hidden');
+      playerView.classList.remove('hidden');
+      gameArea.classList.remove('hidden');
+    };
+
+    function statusMessage(txt){ statusP.textContent = txt; }
+
+    // Paste clipboard
+    pasteBtn.onclick = async ()=>{ try{ const t = await navigator.clipboard.readText(); inputCode.value = t; }catch(e){ alert('Não foi possível aceder à área de transferência.'); } }
+
+    // Load code into game
+    loadCodeBtn.onclick = ()=>{ const code = inputCode.value.trim(); if(!code){ alert('Cola o código recebido.'); return; } loadPuzzleFromCode(code,false); };
+
+    toMenuBtn.onclick = ()=>{ gameArea.classList.add('hidden'); playerView.classList.add('hidden'); menuView.classList.remove('hidden'); openCurtain(); }
+
+    function clearGame(){ leversContainer.innerHTML=''; revealOutput.innerHTML=''; statusP.textContent=''; }
+
+    async function loadPuzzleFromCode(code, silentPreview){
+      clearGame();
+      const meta = decodeBase64(code);
+      if(!meta || typeof meta.n !== 'number' || !meta.verifier){ if(!silentPreview) alert('Código inválido.'); return; }
+      const n = Math.max(1, Math.min(64, meta.n));
+      // build UI
+      for(let i=0;i<n;i++){
+        const wrapper = document.createElement('div'); wrapper.className='lever';
+        const sw = document.createElement('div'); sw.className='switch up';
+        const knob = document.createElement('div'); knob.className='knob'; sw.appendChild(knob);
+        const light = document.createElement('div'); light.className='light';
+        wrapper.appendChild(sw); wrapper.appendChild(light);
+        leversContainer.appendChild(wrapper);
+
+        wrapper.onclick = ()=>{ if(sw.classList.contains('up')){ sw.classList.remove('up'); sw.classList.add('down'); light.classList.add('on'); } else { sw.classList.add('up'); sw.classList.remove('down'); light.classList.remove('on'); } };
+      }
+
+      // show game area
+      gameArea.classList.remove('hidden');
+      statusMessage('Puzzle carregado. Ajusta as alavancas e clica Verificar.');
+
+      checkBtn.onclick = async ()=>{
+        const bits = Array.from(leversContainer.querySelectorAll('.lever')).map(l=> l.querySelector('.switch').classList.contains('down') ? '1' : '0').join('');
+        const h = await sha256Hex(bits);
+        if(h === meta.verifier){
+          // success
+          openCurtain();
+          statusMessage('Acertaste — cortina a abrir...');
+          // reveal content
+          if(meta.type === 'text'){ revealOutput.textContent = meta.content; }
+          else if(meta.type === 'link'){ revealOutput.innerHTML = `<a href="${meta.content}" target="_blank">Abrir ligação</a>`; }
+          else if(meta.type === 'image'){ revealOutput.innerHTML = `<img src="${meta.content}" style="max-width:80%;border-radius:10px;"/>`; }
+          else if(meta.type === 'html'){ revealOutput.innerHTML = meta.content; }
+        } else { statusMessage('Errado — tenta outra combinação.'); }
+      };
+
+      resetBtn.onclick = ()=>{ leversContainer.querySelectorAll('.lever').forEach(l=>{ const sw = l.querySelector('.switch'); sw.classList.add('up'); sw.classList.remove('down'); l.querySelector('.light').classList.remove('on'); }); statusMessage(''); revealOutput.innerHTML=''; curtainLeft.classList.remove('open-left'); curtainRight.classList.remove('open-right'); };
+
+    }
+
+    // On load: ensure menu and curtain initial state
+    openCurtain();
+
+  </script>
+</body>
+</html>
